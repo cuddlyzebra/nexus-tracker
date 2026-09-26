@@ -1,0 +1,4 @@
+node_modules/
+tests/.*.js
+tools/.*.js
+tests/e2e.png

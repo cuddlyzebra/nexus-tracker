@@ -1,0 +1,1 @@
+module.exports=require("alt1/rawimage")(4,15,"//////////////////////////+bjGv/m4xr/5uMa///////m4xr/5uMa/+bjGv//////5uMa/+bjGv/m4xr//////+bjGv/m4xr/5uMa///////m4xr/5uMa/+bjGv//////5uMa/+bjGv/m4xr//////+bjGv/m4xr/5uMa///////m4xr/5uMa/+bjGv//////5uMa/+bjGv/m4xr//////+bjGv/m4xr/5uMa///////m4xr/5uMa/+bjGv//////5uMa/+bjGv/npBt//////+bjGv/npBt/56Qbf//////////////////////");

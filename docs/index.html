@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Nexus Tracker</title>
+	<link rel="stylesheet" href="style.css">
+</head>
+<body>
+	<div id="app">
+		<header>
+			<div class="title">Nexus Tracker</div>
+			<div class="status">
+				<span id="st-chat" class="dot" title="Chat box">Chat</span>
+				<span id="st-buffs" class="dot" title="Buff bar">Buffs</span>
+			</div>
+		</header>
+
+		<div id="install" class="banner warn" hidden></div>
+
+		<div id="litebar" class="banner lite-banner" hidden>
+			Lite mode is on - the panel is on your game screen. You can make this window small.
+		</div>
+
+		<div id="syncline" class="banner"></div>
+
+		<div id="shieldline" class="shield"></div>
+
+		<div id="items" class="items"></div>
+
+		<div id="teach" class="panel teach" hidden>
+			<div class="panel-title">New buff spotted</div>
+			<div class="teach-row">
+				<canvas id="teach-canvas" width="25" height="25"></canvas>
+				<select id="teach-select"></select>
+			</div>
+			<div class="buttons">
+				<button id="teach-save" class="primary">Save</button>
+				<button id="teach-skip">Not a tracked ability</button>
+			</div>
+		</div>
+
+		<div id="log" class="log"></div>
+
+		<div class="buttons footer">
+			<button id="btn-lite" class="primary">Lite mode</button>
+			<button id="btn-move" hidden>Move panel</button>
+			<button id="btn-manual" class="full-only">Log a cast</button>
+			<button id="btn-undo" class="full-only">Undo</button>
+			<button id="btn-settings">Settings</button>
+		</div>
+
+		<div id="manual" class="panel" hidden>
+			<div class="panel-title">Log a cast manually</div>
+			<div id="manual-buttons" class="manual-grid"></div>
+		</div>
+
+		<div id="settings" class="panel" hidden>
+			<div class="panel-title">Settings</div>
+
+			<label>Account
+				<select id="set-profile"></select>
+				<span class="inline">
+					<input id="set-profile-name" type="text" placeholder="New account name">
+					<button id="set-profile-add">Add</button>
+				</span>
+			</label>
+
+			<label>Nexus
+				<select id="set-nexus">
+					<option value="deathwarden">Deathwarden nexus</option>
+					<option value="devourer">The Devourer's Nexus</option>
+					<option value="zemouregal">Zemouregal's nexus</option>
+				</select>
+			</label>
+
+			<label>Necromancy level
+				<input id="set-level" type="number" min="1" max="120">
+			</label>
+
+			<div class="subhead">Lite mode panel</div>
+			<div class="thresholds">
+				<label>Layout
+					<select id="set-lite-layout">
+						<option value="vertical">Vertical</option>
+						<option value="horizontal">Horizontal</option>
+					</select>
+				</label>
+				<label>Size
+					<select id="set-lite-scale">
+						<option value="0.85">Compact</option>
+						<option value="1">Normal</option>
+						<option value="1.25">Large</option>
+						<option value="1.5">Extra large</option>
+					</select>
+				</label>
+				<label>Background
+					<select id="set-lite-bg">
+						<option value="solid">Solid panel</option>
+						<option value="none">None (outlined text)</option>
+					</select>
+				</label>
+			</div>
+
+			<div class="subhead">Warn when below</div>
+			<div id="set-thresholds" class="thresholds"></div>
+
+			<label class="check"><input id="set-overlay" type="checkbox"> Show warning in game</label>
+			<label class="check"><input id="set-sound" type="checkbox"> Play a sound</label>
+			<label class="check"><input id="set-teach" type="checkbox"> Teach mode (learn new buff icons)</label>
+
+			<div class="subhead">Learned buffs</div>
+			<div id="set-templates" class="templates"></div>
+			<div class="buttons">
+				<button id="set-export">Export</button>
+				<button id="set-import">Import</button>
+			</div>
+			<div id="set-json-wrap" hidden>
+				<textarea id="set-json" rows="4" spellcheck="false"></textarea>
+				<div class="buttons"><button id="set-json-apply" hidden>Apply import</button></div>
+			</div>
+
+			<div class="subhead">Correct counts</div>
+			<div id="set-counts" class="thresholds"></div>
+
+			<div class="buttons">
+				<button id="set-close" class="primary">Done</button>
+			</div>
+			<div id="about" class="about"></div>
+		</div>
+	</div>
+	<script src="app.js"></script>
+</body>
+</html>

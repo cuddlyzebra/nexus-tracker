@@ -1,0 +1,16 @@
+{
+	"appName": "Nexus Tracker",
+	"description": "Tracks the ectoplasm and necrotic runes in your Necromancy nexus and warns you before you run out. (beta)",
+	"appUrl": "./index.html",
+	"configUrl": "./appconfig.json",
+	"iconUrl": "./icon.png",
+	"defaultWidth": 300,
+	"defaultHeight": 460,
+	"minWidth": 220,
+	"minHeight": 110,
+	"maxWidth": 600,
+	"maxHeight": 1200,
+	"requestHandlers": [],
+	"activators": [],
+	"permissions": "pixel,overlay"
+}
