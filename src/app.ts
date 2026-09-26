@@ -8,7 +8,7 @@ import { BuffTemplate, Settings, loadProfile, loadSettings, loadTemplates, saveP
 import { BuffWatcherScreen, ChatWatcher, LoadedTemplate, buffMatches, cleanTemplate, drawBuff, imageToTemplate, templateToImage } from "./readers";
 import type { Buff } from "alt1/buffs";
 import { LiteOverlay, preloadLiteImages } from "./lite";
-import { CooldownGuard, NEXUS_ITEMS, REPO_URL, VERSION } from "./core/data";
+import { CooldownGuard, DARKNESS_MULTICAST_COST, NEXUS_ITEMS, REPO_URL, VERSION } from "./core/data";
 
 // Buff icons shipped with the app (exported from teach mode). Merged with the user's own.
 const BUILTIN_TEMPLATES: BuffTemplate[] = require("./buffs/templates.json");
@@ -34,11 +34,26 @@ const chat = new ChatWatcher();
 const buffScreen = new BuffWatcherScreen();
 const collector = new NexusMessageCollector(counts => onContents(counts));
 const cooldownGuard = new CooldownGuard();
+
+/**
+ * A cast that happened before the latest Check contents is already included in the counts it
+ * gave, so charging it again (its detection can finish a second after the check) would count it
+ * twice.
+ */
+function beforeLastSync(what: string, why: string) {
+	const synced = tracker.state.synced;
+	if (synced && buffWatcher.changeAt && buffWatcher.changeAt <= synced) {
+		tracker.debug(`${what} not charged: it happened before the last Check contents, which already includes it (${why})`);
+		return true;
+	}
+	return false;
+}
 const buffWatcher = new BuffWatcher({
 	shieldOn(level, isNew, why) {
 		const tier = classifyShield(level, settings.nexus, settings.necroLevel);
 		// a new activation costs runes, unless the same shield was already known to be up
-		const activated = isNew && tracker.shield != tier;
+		let activated = isNew && tracker.shield != tier;
+		if (activated && beforeLastSync("Bone Shield", why)) { activated = false; }
 		if (!activated) { tracker.debug(why + (isNew ? ", same shield already active: not charged" : "")); }
 		tracker.setShield(tier, level, activated, Date.now(), why);
 	},
@@ -49,6 +64,7 @@ const buffWatcher = new BuffWatcher({
 	cast(key, why, timer) {
 		const def = ACTION_BY_ID[key];
 		if (!def) { return; }
+		if (beforeLastSync(def.name, why)) { return; }
 		if (key == "splitsoul" && !settings.countSplitSoul) {
 			tracker.debug(`Split Soul buff seen, not counted ("Count Split Soul automatically" is off) (${why})`);
 			return;
@@ -61,14 +77,19 @@ const buffWatcher = new BuffWatcher({
 		if (key == "darkness") {
 			// recasting Darkness adds 12 minutes; multicast fills it to 1 hour for 5x the runes
 			const d = darknessCasts(timer.from, timer.to);
+			if (d.multicast) {
+				tracker.spend(key, { source: "auto", why, cost: DARKNESS_MULTICAST_COST, note: "multicast" });
+				return;
+			}
 			if (d.casts > 1) {
-				tracker.spend(key, { source: "auto", why, mult: d.casts, note: d.multicast ? "multicast" : `${d.casts} casts` });
+				tracker.spend(key, { source: "auto", why, mult: d.casts, note: `${d.casts} casts` });
 				return;
 			}
 		}
 		tracker.spend(key, { source: "auto", why });
 	},
 	conjuresSummoned(keys, why) {
+		if (beforeLastSync("Conjures", why)) { return; }
 		if (keys.length > 1) {
 			// several conjures at once = Conjure Undead Army: 2 ectoplasm per conjure
 			const names = keys.map(k => ACTION_BY_ID[k]?.name ?? k).join(", ");
@@ -77,7 +98,10 @@ const buffWatcher = new BuffWatcher({
 			tracker.spend(keys[0], { source: "auto", why });
 		}
 	},
-	conjuresExtended(keys, why) { lifeTransfer(Date.now(), "conjure timers went up: " + why); },
+	conjuresExtended(keys, why) {
+		if (beforeLastSync("Life Transfer", why)) { return; }
+		lifeTransfer(Date.now(), "conjure timers went up: " + why);
+	},
 	note(text) { tracker.debug(text); },
 }, new Set(ACTIONS.filter(a => a.group == "conjure" && a.hasBuff).map(a => a.id)));
 

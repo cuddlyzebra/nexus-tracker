@@ -6,7 +6,7 @@ import * as path from "path";
 import * as zlib from "zlib";
 import { createChatReader, classifyBuffs, isRecentTimestamp, buffMatches, templateToImage, cleanTemplate, readBuffs } from "../src/readers";
 import { NexusMessageCollector, parseLine, parseChatEvent, Counts } from "../src/core/chatparse";
-import { classifyShield, CooldownGuard } from "../src/core/data";
+import { classifyShield, CooldownGuard, DARKNESS_MULTICAST_COST } from "../src/core/data";
 import { Tracker, emptyState } from "../src/core/tracker";
 import { BuffWatcher, BuffObservation, isTimerRefresh, isSameInstance, darknessCasts } from "../src/core/buffwatch";
 import { shortNumber, toAlt1Pixels, stampHaloText } from "../src/lite";
@@ -139,6 +139,21 @@ async function main() {
 		check("single cast near the cap 50m -> 60m = 1 cast", eq(darknessCasts(m(50), m(60)), { casts: 1, multicast: false }));
 		check("minute timer reapply is seen as a recast", isTimerRefresh([m(11), m(11), m(23), m(23)]));
 		check("11m counting down to 10m isn't a recast", !isTimerRefresh([m(11), m(11), m(10), m(10)]));
+	}
+
+	{
+		const t = new Tracker(emptyState(), { ecto: 0, spirit: 0, bone: 0, flesh: 0, miasma: 0 });
+		check("Darkness single cast = 40 Spirit, 20 Bone, 10 Flesh, 5 Miasma", JSON.stringify(t.costOf("darkness")) == JSON.stringify({ spirit: 40, bone: 20, flesh: 10, miasma: 5 }));
+		check("Darkness multicast = 200 Spirit, 10 Bone, 50 Flesh, 25 Miasma (as measured in game)", JSON.stringify(DARKNESS_MULTICAST_COST) == JSON.stringify({ spirit: 200, bone: 10, flesh: 50, miasma: 25 }));
+		t.sync({ ecto: 0, spirit: 1000, bone: 1000, flesh: 1000, miasma: 1000 });
+		t.spend("darkness", { cost: DARKNESS_MULTICAST_COST, note: "multicast" });
+		check("multicast charge uses the in-game cost", t.state.counts!.bone == 990 && t.state.counts!.spirit == 800 && /multicast/.test(t.state.log[0].text), t.state.log[0].text);
+		// the time given to a timer jump is the read where it jumped, not the read that confirmed it
+		const at: number[] = [];
+		const w = new BuffWatcher({ shieldOn() { }, shieldOff() { }, cast() { at.push(w.changeAt); }, conjuresSummoned() { }, conjuresExtended() { } }, new Set());
+		const o = (t: number, ms: number): BuffObservation => ({ visible: true, shieldLevel: null, buffs: [{ key: "darkness", time: t }], total: 3, at: ms });
+		[[660, 1000], [660, 1600], [660, 2200], [660, 2800], [3600, 3400], [3600, 4000]].forEach(([t, ms]) => w.update(o(t, ms)));
+		check("timer jump is dated to the read it happened on", at.length == 1 && at[0] == 3400, at);
 	}
 
 	console.log("built-in icons");

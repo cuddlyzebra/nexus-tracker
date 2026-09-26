@@ -10,6 +10,8 @@ export interface BuffObservation {
 	buffs: { key: string, time: number }[];
 	/** total number of buffs on the bar, including ones we don't recognise */
 	total: number;
+	/** when this read was taken (ms); used to date the changes it reveals */
+	at?: number;
 }
 
 export interface BuffEvents {
@@ -49,6 +51,13 @@ const secs = (reads: number) => (reads * 0.6).toFixed(1) + "s";
 
 export class BuffWatcher {
 	private tick = 0;
+	/** read time (ms) of recent reads, by read number */
+	private readAt = new Map<number, number>();
+	/**
+	 * Roughly when the change behind the event being fired happened (ms). Set just before each
+	 * event, so a handler can tell whether a cast happened before or after a Check contents.
+	 */
+	changeAt = 0;
 	private settleUntil = SETTLE_READS;//also suppresses events on startup
 	private shield: { level: number, lastSeen: number } | null = null;
 	private shieldMissing = 0;
@@ -60,12 +69,16 @@ export class BuffWatcher {
 	/** per taught buff: last read it was seen, and its recent timer values (newest last) */
 	private seen = new Map<string, { lastSeen: number, times: number[] }>();
 	/** conjure changes being grouped: which appeared, which had their timer go up, and when the last one happened */
-	private conjureGroup: { appeared: Set<string>, extended: Set<string>, last: number, whys: string[] } | null = null;
+	private conjureGroup: { appeared: Set<string>, extended: Set<string>, last: number, whys: string[], at: number } | null = null;
 
 	constructor(private events: BuffEvents, private conjureKeys: Set<string>) { }
 
 	update(obs: BuffObservation) {
 		this.tick++;
+		const now = obs.at ?? Date.now();
+		this.readAt.set(this.tick, now);
+		this.readAt.delete(this.tick - 20);
+		this.changeAt = now;
 		// all buffs (2+) disappearing in one read = interface covered, not buffs ending
 		const suddenlyEmpty = obs.total == 0 && this.lastTotal >= 2 && this.blindReads < BLIND_MAX;
 		if (!obs.visible || suddenlyEmpty) {
@@ -135,11 +148,13 @@ export class BuffWatcher {
 				: `timer went up: ${times.join(" -> ")}s`;
 
 			if (this.conjureKeys.has(b.key)) {
-				const g = this.conjureGroup = this.conjureGroup || { appeared: new Set(), extended: new Set(), last: this.tick, whys: [] };
+				const g = this.conjureGroup = this.conjureGroup || { appeared: new Set(), extended: new Set(), last: this.tick, whys: [], at: isNew ? now : (this.readAt.get(this.tick - 1) ?? now) };
 				(isNew ? g.appeared : g.extended).add(b.key);
 				g.whys.push(`${b.key}: ${why}`);
 				g.last = this.tick;
 			} else {
+				// a timer jump is confirmed one read after it happens
+				this.changeAt = isNew ? now : (this.readAt.get(this.tick - 1) ?? now);
 				this.events.cast(b.key, why, { from: isNew ? null : Math.max(times[0], times[1]), to: b.time });
 			}
 		}
@@ -148,6 +163,7 @@ export class BuffWatcher {
 		const g = this.conjureGroup;
 		if (g && this.tick - g.last >= CONJURE_WINDOW) {
 			this.conjureGroup = null;
+			this.changeAt = g.at;
 			if (g.appeared.size > 0) {
 				// timers reset alongside new summons = those were re-summoned by the same Undead Army
 				const all = new Set([...g.appeared, ...(g.appeared.size + g.extended.size > 1 ? g.extended : [])]);

@@ -1,4 +1,4 @@
-export const VERSION = "0.9.4-beta";
+export const VERSION = "0.9.6-beta";
 export const REPO_URL = "https://github.com/cuddlyzebra/nexus-tracker";
 
 // Static game data: nexus items, ability/incantation costs, bone shield scaling.
@@ -102,6 +102,9 @@ export const ACTIONS: ActionDef[] = [
 	// charged once per conjure it summons (detected as several conjures appearing together)
 	{ id: "conjurearmy", name: "Conjure Undead Army", group: "conjure", cost: { ecto: 2 }, hasBuff: false, manual: false },
 ];
+
+/** Runes taken by the Darkness multicast option, as measured in game (Sept 2026). */
+export const DARKNESS_MULTICAST_COST: Cost = { spirit: 200, bone: 10, flesh: 50, miasma: 25 };
 
 export const ACTION_BY_ID: Record<string, ActionDef> = Object.fromEntries(ACTIONS.map(a => [a.id, a]));
 

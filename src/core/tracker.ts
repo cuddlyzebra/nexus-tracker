@@ -92,10 +92,10 @@ export class Tracker {
 	}
 
 	/** Record that an ability was used */
-	spend(actionId: string, opts: { mult?: number, source?: string, now?: number, note?: string, why?: string } = {}) {
+	spend(actionId: string, opts: { mult?: number, source?: string, now?: number, note?: string, why?: string, cost?: Cost } = {}) {
 		const def = ACTION_BY_ID[actionId];
 		const now = opts.now ?? Date.now();
-		const cost = this.costOf(actionId, opts.mult ?? 1);
+		const cost = opts.cost ?? this.costOf(actionId, opts.mult ?? 1);
 		const label = def ? def.name : actionId;
 		const extra = def?.group == "defensive" && this.shield ? ` (${this.shield == "greater" ? "Greater" : "Lesser"} Bone Shield)` : "";
 		if (!cost) {

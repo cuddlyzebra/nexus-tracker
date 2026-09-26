@@ -52,7 +52,7 @@ Everything below is detected automatically.
 | Invoke Death | buff | 5 Spirit, 2 Bone, 2 Flesh, 1 Miasma |
 | Invoke Lord of Bones | buff | 8 Spirit, 6 Bone, 2 Flesh, 1 Miasma |
 | Split Soul | buff (see [Split Soul](#split-soul-and-the-eldritch-crossbow)) | 10 Spirit, 5 Bone, 2 Flesh, 1 Miasma |
-| Darkness | buff, including reapplying it (multicast = 5x) | 40 Spirit, 20 Bone, 10 Flesh, 5 Miasma |
+| Darkness | buff, including reapplying it and multicast | 40 Spirit, 20 Bone, 10 Flesh, 5 Miasma |
 | Life Transfer | its chat message, or your conjures' timers going up | 10 Spirit, 5 Bone, 2 Flesh, 1 Miasma |
 | Single conjure (Skeleton, Zombie, Ghost, Phantom) | its buff appears | 1 Ectoplasm |
 | Conjure Undead Army | several conjures appear together | 2 Ectoplasm per conjure |
@@ -78,9 +78,8 @@ count once, because the timer hasn't dropped far enough to visibly jump back up.
 
 **Reapplying Darkness.** Darkness starts at 12m and each cast adds 12 minutes, up to 1 hour.
 Reapplying it before it runs out (for example at 11m) makes the timer jump up by about 12m,
-which counts as one cast. The right-click **multicast** fills it to 1 hour for 5x the runes;
-a jump straight up to about an hour is charged as a multicast (200 Spirit, 100 Bone, 50 Flesh,
-25 Miasma).
+which counts as one cast. The right-click **multicast** fills it to 1 hour in one go; a jump
+straight up to about an hour is recognised as a multicast and charged as one.
 
 **Buffs that flash or briefly disappear.** RuneScape makes buffs flash as they run out, and
 an interface can briefly cover the bar. A buff that comes back with its timer carrying on from
@@ -91,6 +90,10 @@ The Bone Shield buff reappearing within 3 seconds is treated the same way.
 for example 30s for Split Soul or 15s for Reflect. That catches any double detection that
 slips through. Invoke Lord of Bones and Darkness have no (or almost no) cooldown, so they
 rely on the timer checks above.
+
+**Casting just before Check contents.** The app needs about a second to confirm some casts. A
+cast made just before you check contents is already included in the numbers the check gives, so
+it isn't charged again afterwards.
 
 **Big buff bars.** The app reads buff bars up to 10 buffs wide and 3 rows deep, including
 buffs that are flashing.

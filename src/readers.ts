@@ -201,7 +201,7 @@ export function isBoneShield(b: Buff) {
 
 /** Classify a set of buffs read from the screen (separate so it can be tested on screenshots) */
 export function classifyBuffs(buffs: Buff[], templates: LoadedTemplate[]): BuffRead {
-	const r: BuffRead = { visible: true, shieldLevel: null, buffs: [], unknown: [], total: buffs.length };
+	const r: BuffRead = { visible: true, shieldLevel: null, buffs: [], unknown: [], total: buffs.length, at: Date.now() };
 	for (const b of buffs) {
 		if (isBoneShield(b)) {
 			const n = parseInt(b.readArg("arg").arg, 10);
