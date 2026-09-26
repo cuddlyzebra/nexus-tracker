@@ -3,7 +3,7 @@ import * as a1lib from "alt1/base";
 import { ACTIONS, ACTION_BY_ID, ITEMS, ItemId, SHIELD_COST, ShieldTier, classifyShield } from "./core/data";
 import { Counts, NexusMessageCollector, parseChatEvent } from "./core/chatparse";
 import { Tracker } from "./core/tracker";
-import { BuffWatcher } from "./core/buffwatch";
+import { BuffWatcher, darknessCasts } from "./core/buffwatch";
 import { BuffTemplate, Settings, loadProfile, loadSettings, loadTemplates, saveProfile, saveSettings, saveTemplates } from "./core/storage";
 import { BuffWatcherScreen, ChatWatcher, LoadedTemplate, buffMatches, cleanTemplate, drawBuff, imageToTemplate, templateToImage } from "./readers";
 import type { Buff } from "alt1/buffs";
@@ -46,7 +46,7 @@ const buffWatcher = new BuffWatcher({
 		tracker.debug(why);
 		tracker.setShield(null, null, false);
 	},
-	cast(key, why) {
+	cast(key, why, timer) {
 		const def = ACTION_BY_ID[key];
 		if (!def) { return; }
 		if (key == "splitsoul" && !settings.countSplitSoul) {
@@ -57,6 +57,14 @@ const buffWatcher = new BuffWatcher({
 		if (ignored) {
 			tracker.debug(`${def.name} detected again, ${ignored} (${why})`);
 			return;
+		}
+		if (key == "darkness") {
+			// recasting Darkness adds 12 minutes; multicast fills it to 1 hour for 5x the runes
+			const d = darknessCasts(timer.from, timer.to);
+			if (d.casts > 1) {
+				tracker.spend(key, { source: "auto", why, mult: d.casts, note: d.multicast ? "multicast" : `${d.casts} casts` });
+				return;
+			}
 		}
 		tracker.spend(key, { source: "auto", why });
 	},

@@ -8,7 +8,7 @@ import { createChatReader, classifyBuffs, isRecentTimestamp, buffMatches, templa
 import { NexusMessageCollector, parseLine, parseChatEvent, Counts } from "../src/core/chatparse";
 import { classifyShield, CooldownGuard } from "../src/core/data";
 import { Tracker, emptyState } from "../src/core/tracker";
-import { BuffWatcher, BuffObservation, isTimerRefresh, isSameInstance } from "../src/core/buffwatch";
+import { BuffWatcher, BuffObservation, isTimerRefresh, isSameInstance, darknessCasts } from "../src/core/buffwatch";
 import { shortNumber, toAlt1Pixels, stampHaloText } from "../src/lite";
 
 let failures = 0, passes = 0;
@@ -125,6 +125,21 @@ async function main() {
 	check("buff back with timer where it left off = same cast", isSameInstance([4, 3], 1, 4));
 	check("buff back with a reset timer = new cast", !isSameInstance([4, 3], 20, 4));
 	check("stall press: timer 55 -> 60 is a recast", isTimerRefresh([56, 55, 60, 59]));
+
+	console.log("darkness");
+	{
+		const m = (n: number) => n * 60;
+		const eq = (a: any, b: any) => JSON.stringify(a) == JSON.stringify(b);
+		check("new Darkness (12m) = 1 cast", eq(darknessCasts(null, m(12)), { casts: 1, multicast: false }));
+		check("reapplied at 11m -> 23m = 1 cast", eq(darknessCasts(m(11), m(23)), { casts: 1, multicast: false }));
+		check("reapplied at 3m -> 15m = 1 cast", eq(darknessCasts(m(3), m(15)), { casts: 1, multicast: false }));
+		check("two quick casts 11m -> 35m = 2 casts", eq(darknessCasts(m(11), m(35)), { casts: 2, multicast: false }));
+		check("multicast 11m -> 1hr = 5x", eq(darknessCasts(m(11), m(60)), { casts: 5, multicast: true }));
+		check("multicast from nothing -> 1hr = 5x", eq(darknessCasts(null, m(60)), { casts: 5, multicast: true }));
+		check("single cast near the cap 50m -> 60m = 1 cast", eq(darknessCasts(m(50), m(60)), { casts: 1, multicast: false }));
+		check("minute timer reapply is seen as a recast", isTimerRefresh([m(11), m(11), m(23), m(23)]));
+		check("11m counting down to 10m isn't a recast", !isTimerRefresh([m(11), m(11), m(10), m(10)]));
+	}
 
 	console.log("built-in icons");
 	{
@@ -261,7 +276,7 @@ async function main() {
 		const w = new BuffWatcher({
 			shieldOn: (l, n) => ev.push(`on${l}${n ? "!" : ""}`),
 			shieldOff: () => ev.push("off"),
-			cast: k => ev.push(`${k}x1`),
+			cast: (k, _why, _t) => ev.push(`${k}x1`),
 			conjuresSummoned: keys => ev.push(keys.length > 1 ? `army:${[...keys].sort().join("+")}` : `${keys[0]}x1`),
 			conjuresExtended: keys => ev.push(`extended:${[...keys].sort().join("+")}`),
 		}, new Set(["conjureskeleton", "conjurezombie", "conjureghost", "conjurephantom"]));

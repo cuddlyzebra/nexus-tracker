@@ -1,6 +1,6 @@
 {
 	"name": "nexus-tracker",
-	"version": "0.9.3-beta",
+	"version": "0.9.4-beta",
 	"private": true,
 	"description": "Alt1 app for RuneScape 3 that tracks the ectoplasm and necrotic runes in your Necromancy nexus",
 	"scripts": {

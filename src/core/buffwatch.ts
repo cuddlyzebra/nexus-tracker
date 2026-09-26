@@ -17,7 +17,8 @@ export interface BuffEvents {
 	shieldOn(level: number, isNewActivation: boolean, why: string): void;
 	shieldOff(why: string): void;
 	/** a taught (non-conjure) buff appeared or had its timer refreshed */
-	cast(key: string, why: string): void;
+	/** `from` is the timer before (null for a brand new buff), `to` the timer now, in seconds */
+	cast(key: string, why: string, timer: { from: number | null, to: number }): void;
 	/**
 	 * Conjures summoned. More than one appearing together = Conjure Undead Army
 	 * (conjures that were already out and got their timer reset in the same moment are included).
@@ -139,7 +140,7 @@ export class BuffWatcher {
 				g.whys.push(`${b.key}: ${why}`);
 				g.last = this.tick;
 			} else {
-				this.events.cast(b.key, why);
+				this.events.cast(b.key, why, { from: isNew ? null : Math.max(times[0], times[1]), to: b.time });
 			}
 		}
 
@@ -185,4 +186,17 @@ export function isSameInstance(prevTimes: number[], nowTime: number, goneReads: 
 	if (!last || !nowTime) { return false; }//no timer to compare
 	const expected = last - goneReads * 0.6;
 	return nowTime <= Math.max(0, expected) + 3;
+}
+
+/**
+ * How many casts of Darkness a timer change means. Each cast adds 12 minutes (up to 1 hour);
+ * the right-click multicast fills it to 1 hour for 5x the runes.
+ * Timers of a minute or more are shown in whole minutes ("11m"), so these are approximate.
+ */
+export function darknessCasts(from: number | null, to: number): { casts: number, multicast: boolean } {
+	const CAST = 12 * 60, MAX = 60 * 60;
+	const added = to - (from ?? 0);
+	// jumped to (about) the full hour by more than one cast's worth = multicast
+	if (to >= MAX - 60 && added > CAST + 60) { return { casts: 5, multicast: true }; }
+	return { casts: Math.max(1, Math.round(added / CAST)), multicast: false };
 }
