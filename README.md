@@ -147,3 +147,8 @@ Alt1 won't install apps from a local `http://localhost` address, so test changes
 pushing to GitHub Pages (or a fork).
 
 Built with the [RuneApps Alt1 toolkit](https://runeapps.org/alt1). Not affiliated with Jagex.
+
+## License
+
+Nexus Tracker is released under the [MIT License](LICENSE).
+The Alt1 libraries in `vendor/alt1` belong to [skillbert/alt1](https://github.com/skillbert/alt1) and are not covered by this license.
