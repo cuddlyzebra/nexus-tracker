@@ -50,7 +50,7 @@ Everything below is detected automatically.
 | Threads of Fate | buff | 5 Spirit, 2 Bone, 1 Flesh |
 | Invoke Death | buff | 5 Spirit, 2 Bone, 2 Flesh, 1 Miasma |
 | Invoke Lord of Bones | buff | 8 Spirit, 6 Bone, 2 Flesh, 1 Miasma |
-| Split Soul | buff | 10 Spirit, 5 Bone, 2 Flesh, 1 Miasma |
+| Split Soul | buff (see note below) | 10 Spirit, 5 Bone, 2 Flesh, 1 Miasma |
 | Darkness | buff | 40 Spirit, 20 Bone, 10 Flesh, 5 Miasma |
 | Life Transfer | its chat message, or your conjures' timers going up | 10 Spirit, 5 Bone, 2 Flesh, 1 Miasma |
 | Single conjure (Skeleton, Zombie, Ghost, Phantom) | its buff appears | 1 Ectoplasm |
@@ -60,6 +60,13 @@ Everything below is detected automatically.
 **Lesser or Greater?** The app tells them apart from the number on the Bone Shield buff. That
 number is 25% / 50% of your Necromancy level with the Deathwarden or Devourer's nexus, and
 37.5% / 62.5% with Zemouregal's (for example, 30 / 60 at level 120).
+
+**Split Soul and the Eldritch crossbow:** the crossbow's Split Soul special attack gives exactly the
+same buff as the Necromancy incantation, but costs no runes. If you use the crossbow, turn off
+Settings → **Count Split Soul automatically** and log Necromancy Split Soul casts with **Log a cast**.
+
+**Double counts:** an ability can't be counted again within half its cooldown (for example 30s for
+Split Soul), so a buff that flickers on the bar isn't charged twice.
 
 ## Lite mode
 

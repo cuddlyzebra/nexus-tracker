@@ -1,4 +1,4 @@
-export const VERSION = "0.9.1-beta";
+export const VERSION = "0.9.2-beta";
 export const REPO_URL = "https://github.com/cuddlyzebra/nexus-tracker";
 
 // Static game data: nexus items, ability/incantation costs, bone shield scaling.
@@ -65,6 +65,8 @@ export interface ActionDef {
 	hasBuff: boolean;
 	/** false to leave it off the "Log a cast" panel */
 	manual?: boolean;
+	/** base cooldown in seconds (RuneScape Wiki); used to ignore impossible double detections */
+	cooldown?: number;
 }
 
 export const ACTIONS: ActionDef[] = [
@@ -73,22 +75,22 @@ export const ACTIONS: ActionDef[] = [
 	{ id: "greaterboneshield", name: "Greater Bone Shield", group: "shield", cost: SHIELD_COST.greater, hasBuff: false },
 
 	// Defensives that need a shield: cost the active Bone Shield's runes, free without Bone Shield
-	{ id: "resonance", name: "Resonance", group: "defensive", hasBuff: true },
-	{ id: "divert", name: "Divert", group: "defensive", hasBuff: true },
-	{ id: "barricade", name: "Barricade", group: "defensive", hasBuff: true },
-	{ id: "reflect", name: "Reflect", group: "defensive", hasBuff: true },
-	{ id: "immortality", name: "Immortality", group: "defensive", hasBuff: true },
-	{ id: "rejuvenate", name: "Rejuvenate", group: "defensive", hasBuff: true },
-	{ id: "preparation", name: "Preparation", group: "defensive", hasBuff: true },
+	{ id: "resonance", name: "Resonance", group: "defensive", hasBuff: true, cooldown: 30 },
+	{ id: "divert", name: "Divert", group: "defensive", hasBuff: true, cooldown: 30 },
+	{ id: "barricade", name: "Barricade", group: "defensive", hasBuff: true, cooldown: 60 },
+	{ id: "reflect", name: "Reflect", group: "defensive", hasBuff: true, cooldown: 30 },
+	{ id: "immortality", name: "Immortality", group: "defensive", hasBuff: true, cooldown: 120 },
+	{ id: "rejuvenate", name: "Rejuvenate", group: "defensive", hasBuff: true, cooldown: 300 },
+	{ id: "preparation", name: "Preparation", group: "defensive", hasBuff: true, cooldown: 20.4 },
 
 	// Incantations
-	{ id: "threadsoffate", name: "Threads of Fate", group: "incantation", cost: { spirit: 5, bone: 2, flesh: 1 }, hasBuff: true },
+	{ id: "threadsoffate", name: "Threads of Fate", group: "incantation", cost: { spirit: 5, bone: 2, flesh: 1 }, hasBuff: true, cooldown: 45 },
 	// no buff: detected from its chat message and from conjure timers being extended
 	{ id: "lifetransfer", name: "Life Transfer", group: "incantation", cost: { spirit: 10, bone: 5, flesh: 2, miasma: 1 }, hasBuff: false },//cost confirmed in game
 	{ id: "invokelordofbones", name: "Invoke Lord of Bones", group: "incantation", cost: { spirit: 8, bone: 6, flesh: 2, miasma: 1 }, hasBuff: true },
-	{ id: "invokedeath", name: "Invoke Death", group: "incantation", cost: { spirit: 5, bone: 2, flesh: 2, miasma: 1 }, hasBuff: true },
-	{ id: "darkness", name: "Darkness", group: "incantation", cost: { spirit: 40, bone: 20, flesh: 10, miasma: 5 }, hasBuff: true },
-	{ id: "splitsoul", name: "Split Soul", group: "incantation", cost: { spirit: 10, bone: 5, flesh: 2, miasma: 1 }, hasBuff: true },
+	{ id: "invokedeath", name: "Invoke Death", group: "incantation", cost: { spirit: 5, bone: 2, flesh: 2, miasma: 1 }, hasBuff: true, cooldown: 3.6 },
+	{ id: "darkness", name: "Darkness", group: "incantation", cost: { spirit: 40, bone: 20, flesh: 10, miasma: 5 }, hasBuff: true, cooldown: 1.8 },
+	{ id: "splitsoul", name: "Split Soul", group: "incantation", cost: { spirit: 10, bone: 5, flesh: 2, miasma: 1 }, hasBuff: true, cooldown: 60 },
 	{ id: "umteleport", name: "City of Um Teleport", group: "incantation", cost: { spirit: 5 }, hasBuff: false },
 	{ id: "ungaelteleport", name: "Ungael Teleport", group: "incantation", cost: { spirit: 5 }, hasBuff: false },
 
@@ -111,4 +113,24 @@ export function scaleCost(cost: Cost, mult: number): Cost {
 
 export function formatCost(cost: Cost) {
 	return ITEMS.filter(i => cost[i.id]).map(i => `${cost[i.id]} ${i.name.replace(" rune", "")}`).join(", ");
+}
+
+/**
+ * Stops one cast being counted twice when a buff flickers: an automatic detection of an
+ * ability is ignored if the same ability was counted less than half its cooldown ago
+ * (half, to allow for anything that shortens cooldowns).
+ */
+export class CooldownGuard {
+	private last = new Map<string, number>();
+
+	/** returns null if the detection should count, or the reason it's ignored */
+	check(actionId: string, now: number): string | null {
+		const cd = ACTION_BY_ID[actionId]?.cooldown;
+		const prev = this.last.get(actionId);
+		if (cd && prev != null && now - prev < cd * 500) {
+			return `ignored: already counted ${((now - prev) / 1000).toFixed(1)}s ago and its cooldown is ${cd}s`;
+		}
+		this.last.set(actionId, now);
+		return null;
+	}
 }

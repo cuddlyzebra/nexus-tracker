@@ -6,7 +6,7 @@ import * as path from "path";
 import * as zlib from "zlib";
 import { createChatReader, classifyBuffs, isRecentTimestamp, buffMatches, templateToImage, cleanTemplate } from "../src/readers";
 import { NexusMessageCollector, parseLine, parseChatEvent, Counts } from "../src/core/chatparse";
-import { classifyShield } from "../src/core/data";
+import { classifyShield, CooldownGuard } from "../src/core/data";
 import { Tracker, emptyState } from "../src/core/tracker";
 import { BuffWatcher, BuffObservation, isTimerRefresh } from "../src/core/buffwatch";
 import { shortNumber, toAlt1Pixels, stampHaloText } from "../src/lite";
@@ -219,6 +219,17 @@ async function main() {
 		check("never goes below 0", t.state.counts!.spirit == 0);
 		t.sync({ ecto: 1000, spirit: 1000, bone: 1000, flesh: 1000, miasma: 1000 });
 		check("sync logs the correction", /corrected/.test(t.state.log[0].text), t.state.log[0].text);
+	}
+
+	console.log("cooldown guard");
+	{
+		const g = new CooldownGuard();
+		check("first Split Soul counts", g.check("splitsoul", 0) == null);
+		check("Split Soul again 5s later is ignored", g.check("splitsoul", 5000) != null);
+		check("Split Soul 31s later counts", g.check("splitsoul", 31000) == null);
+		check("Reflect 10s after Reflect ignored, 16s counts", g.check("reflect", 0) == null && g.check("reflect", 10000) != null && g.check("reflect", 16000) == null);
+		check("Lord of Bones has no cooldown: never ignored", g.check("invokelordofbones", 0) == null && g.check("invokelordofbones", 1000) == null);
+		check("different abilities don't block each other", g.check("resonance", 0) == null && g.check("divert", 100) == null);
 	}
 
 	console.log("buff watcher");

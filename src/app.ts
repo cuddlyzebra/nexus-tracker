@@ -8,7 +8,7 @@ import { BuffTemplate, Settings, loadProfile, loadSettings, loadTemplates, saveP
 import { BuffWatcherScreen, ChatWatcher, LoadedTemplate, buffMatches, cleanTemplate, drawBuff, imageToTemplate, templateToImage } from "./readers";
 import type { Buff } from "alt1/buffs";
 import { LiteOverlay, preloadLiteImages } from "./lite";
-import { NEXUS_ITEMS, REPO_URL, VERSION } from "./core/data";
+import { CooldownGuard, NEXUS_ITEMS, REPO_URL, VERSION } from "./core/data";
 
 // Buff icons shipped with the app (exported from teach mode). Merged with the user's own.
 const BUILTIN_TEMPLATES: BuffTemplate[] = require("./buffs/templates.json");
@@ -33,6 +33,7 @@ preloadLiteImages();
 const chat = new ChatWatcher();
 const buffScreen = new BuffWatcherScreen();
 const collector = new NexusMessageCollector(counts => onContents(counts));
+const cooldownGuard = new CooldownGuard();
 const buffWatcher = new BuffWatcher({
 	shieldOn(level, isNew, why) {
 		const tier = classifyShield(level, settings.nexus, settings.necroLevel);
@@ -46,7 +47,18 @@ const buffWatcher = new BuffWatcher({
 		tracker.setShield(null, null, false);
 	},
 	cast(key, why) {
-		if (ACTION_BY_ID[key]) { tracker.spend(key, { source: "auto", why }); }
+		const def = ACTION_BY_ID[key];
+		if (!def) { return; }
+		if (key == "splitsoul" && !settings.countSplitSoul) {
+			tracker.debug(`Split Soul buff seen, not counted ("Count Split Soul automatically" is off) (${why})`);
+			return;
+		}
+		const ignored = cooldownGuard.check(key, Date.now());
+		if (ignored) {
+			tracker.debug(`${def.name} detected again, ${ignored} (${why})`);
+			return;
+		}
+		tracker.spend(key, { source: "auto", why });
 	},
 	conjuresSummoned(keys, why) {
 		if (keys.length > 1) {
@@ -384,6 +396,7 @@ function renderSettings() {
 	$<HTMLInputElement>("set-overlay").checked = settings.overlay;
 	$<HTMLInputElement>("set-sound").checked = settings.sound;
 	$<HTMLInputElement>("set-teach").checked = settings.teach;
+	$<HTMLInputElement>("set-splitsoul").checked = settings.countSplitSoul;
 
 	const th = $("set-thresholds");
 	th.innerHTML = "";
@@ -536,6 +549,7 @@ function bindUi() {
 		settings.necroLevel = Math.min(120, Math.max(1, +(e.target as HTMLInputElement).value || 120));
 		saveSettings(settings);
 	};
+	$<HTMLInputElement>("set-splitsoul").onchange = e => { settings.countSplitSoul = (e.target as HTMLInputElement).checked; saveSettings(settings); };
 	$<HTMLInputElement>("set-overlay").onchange = e => { settings.overlay = (e.target as HTMLInputElement).checked; saveSettings(settings); };
 	$<HTMLInputElement>("set-sound").onchange = e => { settings.sound = (e.target as HTMLInputElement).checked; saveSettings(settings); if (settings.sound) { beep(1); } };
 	$<HTMLInputElement>("set-teach").onchange = e => {

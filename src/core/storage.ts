@@ -21,6 +21,8 @@ export interface Settings {
 	liteScale: number;
 	/** solid panel, or just outlined icons and numbers over the game */
 	liteBackground: "solid" | "none";
+	/** Split Soul's buff is identical for the Eldritch crossbow special, so it can be turned off */
+	countSplitSoul: boolean;
 	/** settings format version, used for one-time upgrades */
 	version: number;
 }
@@ -40,6 +42,7 @@ export const DEFAULT_SETTINGS: Settings = {
 	liteLayout: "vertical",
 	liteScale: 1,
 	liteBackground: "solid",
+	countSplitSoul: true,
 	version: 4,
 };
 
