@@ -92,6 +92,7 @@ Default warning levels: **1,000** Ectoplasm, Spirit, Bone and Flesh runes; **500
 
 - **Two accounts:** Settings → Account keeps separate counts per account. Pick the right one in each Alt1 window.
 - **Undo:** reverses the last charge if something was counted by mistake.
+- **Copy log:** Settings → Copy log copies the full history, including why each charge was counted. Paste it into a bug report.
 - **Log a cast:** add a charge by hand (for teleports, or anything the app missed).
 - **Correct counts:** set any number by hand in Settings. Check contents does this for you anyway.
 - **Teach mode:** only needed if a game update changes a buff icon. Turn it on, use the ability,
@@ -112,6 +113,7 @@ Default warning levels: **1,000** Ectoplasm, Spirit, Bone and Flesh runes; **500
 
 - what you did,
 - what the app showed vs. what Check contents said,
+- the text from Settings → **Copy log**,
 - a screenshot of the app and your buff bar, if you can.
 
 ---

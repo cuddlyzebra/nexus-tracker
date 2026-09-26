@@ -7,8 +7,16 @@ export interface LogEntry {
 	text: string;
 	/** amounts removed (positive numbers), used for undo */
 	spent?: Cost;
-	kind: "sync" | "spend" | "info";
+	/** "debug" entries aren't shown in the app, only in the copied log */
+	kind: "sync" | "spend" | "info" | "debug";
+	/** why an automatic charge was counted (for diagnosing mistakes) */
+	why?: string;
+	/** counts right after this entry, e.g. "E 41476 / S 24593 / B 23578 / F 19998 / M 66548" */
+	after?: string;
 }
+
+/** How many log entries are kept */
+export const LOG_LIMIT = 400;
 
 export interface TrackerState {
 	counts: Counts | null;
@@ -37,8 +45,15 @@ export class Tracker {
 	}
 
 	private addLog(e: LogEntry) {
+		const c = this.state.counts;
+		if (c && e.kind != "debug") { e.after = `E ${c.ecto} / S ${c.spirit} / B ${c.bone} / F ${c.flesh} / M ${c.miasma}`; }
 		this.state.log.unshift(e);
-		if (this.state.log.length > 60) { this.state.log.length = 60; }
+		if (this.state.log.length > LOG_LIMIT) { this.state.log.length = LOG_LIMIT; }
+	}
+
+	/** Note something for the copied log only (not shown in the app) */
+	debug(text: string, now = Date.now()) {
+		this.addLog({ time: now, kind: "debug", text });
 	}
 
 	/** Contents read from the chat box: this is the ground truth */
@@ -77,14 +92,14 @@ export class Tracker {
 	}
 
 	/** Record that an ability was used */
-	spend(actionId: string, opts: { mult?: number, source?: string, now?: number, note?: string } = {}) {
+	spend(actionId: string, opts: { mult?: number, source?: string, now?: number, note?: string, why?: string } = {}) {
 		const def = ACTION_BY_ID[actionId];
 		const now = opts.now ?? Date.now();
 		const cost = this.costOf(actionId, opts.mult ?? 1);
 		const label = def ? def.name : actionId;
 		const extra = def?.group == "defensive" && this.shield ? ` (${this.shield == "greater" ? "Greater" : "Lesser"} Bone Shield)` : "";
 		if (!cost) {
-			this.addLog({ time: now, kind: "info", text: `${label}: no runes used` });
+			this.addLog({ time: now, kind: "info", text: `${label}: no runes used`, why: opts.why });
 			this.hooks.onChange?.();
 			return null;
 		}
@@ -95,7 +110,7 @@ export class Tracker {
 			}
 		}
 		const detail = opts.note ? ` (${opts.note})` : opts.mult && opts.mult > 1 ? " x" + opts.mult : "";
-		this.addLog({ time: now, kind: "spend", spent: cost, text: `${label}${extra}${detail}: -${formatCost(cost)}${opts.source == "manual" ? " (manual)" : ""}` });
+		this.addLog({ time: now, kind: "spend", spent: cost, why: opts.why, text: `${label}${extra}${detail}: -${formatCost(cost)}${opts.source == "manual" ? " (manual)" : ""}` });
 		this.refreshLowFlags(true);
 		this.hooks.onChange?.();
 		return cost;
@@ -116,12 +131,12 @@ export class Tracker {
 	}
 
 	/** Bone Shield buff changed (level from the buff bar, tier worked out by the caller) */
-	setShield(tier: ShieldTier | null, level: number | null, activated: boolean, now = Date.now()) {
+	setShield(tier: ShieldTier | null, level: number | null, activated: boolean, now = Date.now(), why?: string) {
 		const prev = this.shield;
 		this.shield = tier;
 		this.shieldLevel = level;
 		if (activated && tier) {
-			this.spend(tier == "greater" ? "greaterboneshield" : "lesserboneshield", { now });
+			this.spend(tier == "greater" ? "greaterboneshield" : "lesserboneshield", { now, why });
 		} else if (prev != tier) {
 			this.hooks.onChange?.();
 		}

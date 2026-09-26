@@ -240,7 +240,11 @@ async function main() {
 		w.update(o(60)); w.update(o(null)); w.update(o(null));
 		check("shield off after 2 reads", ev.slice(-1)[0] == "off", ev);
 		w.update(o(60));
-		check("shield toggled on is charged", ev.slice(-1)[0] == "on60!", ev);
+		check("shield back within 3s is not charged (it was only hidden)", ev.slice(-1)[0] == "on60", ev);
+		w.update(o(60)); w.update(o(null)); w.update(o(null));
+		for (let i = 0; i < 6; i++) { w.update(o(null)); }
+		w.update(o(60));
+		check("shield toggled off and on again is charged", ev.slice(-1)[0] == "on60!", ev);
 		w.update(o(30));
 		check("single odd read ignored", ev.slice(-1)[0] == "on60!", ev);
 		w.update(o(30));

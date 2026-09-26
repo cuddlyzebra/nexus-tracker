@@ -1,4 +1,4 @@
-export const VERSION = "0.9.0-beta";
+export const VERSION = "0.9.1-beta";
 export const REPO_URL = "https://github.com/cuddlyzebra/nexus-tracker";
 
 // Static game data: nexus items, ability/incantation costs, bone shield scaling.

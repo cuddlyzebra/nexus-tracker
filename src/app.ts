@@ -34,26 +34,31 @@ const chat = new ChatWatcher();
 const buffScreen = new BuffWatcherScreen();
 const collector = new NexusMessageCollector(counts => onContents(counts));
 const buffWatcher = new BuffWatcher({
-	shieldOn(level, isNew) {
+	shieldOn(level, isNew, why) {
 		const tier = classifyShield(level, settings.nexus, settings.necroLevel);
 		// a new activation costs runes, unless the same shield was already known to be up
 		const activated = isNew && tracker.shield != tier;
-		tracker.setShield(tier, level, activated);
+		if (!activated) { tracker.debug(why + (isNew ? ", same shield already active: not charged" : "")); }
+		tracker.setShield(tier, level, activated, Date.now(), why);
 	},
-	shieldOff() { tracker.setShield(null, null, false); },
-	cast(key) {
-		if (ACTION_BY_ID[key]) { tracker.spend(key, { source: "auto" }); }
+	shieldOff(why) {
+		tracker.debug(why);
+		tracker.setShield(null, null, false);
 	},
-	conjuresSummoned(keys) {
+	cast(key, why) {
+		if (ACTION_BY_ID[key]) { tracker.spend(key, { source: "auto", why }); }
+	},
+	conjuresSummoned(keys, why) {
 		if (keys.length > 1) {
 			// several conjures at once = Conjure Undead Army: 2 ectoplasm per conjure
 			const names = keys.map(k => ACTION_BY_ID[k]?.name ?? k).join(", ");
-			tracker.spend("conjurearmy", { mult: keys.length, source: "auto", note: names });
+			tracker.spend("conjurearmy", { mult: keys.length, source: "auto", note: names, why });
 		} else {
-			tracker.spend(keys[0], { source: "auto" });
+			tracker.spend(keys[0], { source: "auto", why });
 		}
 	},
-	conjuresExtended() { lifeTransfer(); },
+	conjuresExtended(keys, why) { lifeTransfer(Date.now(), "conjure timers went up: " + why); },
+	note(text) { tracker.debug(text); },
 }, new Set(ACTIONS.filter(a => a.group == "conjure" && a.hasBuff).map(a => a.id)));
 
 /**
@@ -61,10 +66,13 @@ const buffWatcher = new BuffWatcher({
  * Whichever is seen first counts; the other one within a few seconds is the same cast.
  */
 let lastLifeTransfer = 0;
-function lifeTransfer(now = Date.now()) {
-	if (now - lastLifeTransfer < 5000) { return; }
+function lifeTransfer(now = Date.now(), why = "") {
+	if (now - lastLifeTransfer < 5000) {
+		tracker.debug(`Life Transfer seen again within 5s, same cast: ${why}`);
+		return;
+	}
 	lastLifeTransfer = now;
-	tracker.spend("lifetransfer", { source: "auto" });
+	tracker.spend("lifetransfer", { source: "auto", why });
 }
 
 let prevUnknown: Buff[] = [];
@@ -111,7 +119,7 @@ function tick() {
 		for (const line of read.lines) {
 			collector.feed(line, now);
 			// abilities with no buff, recognised from their chat message (never from old history)
-			if (!read.history && parseChatEvent(line) == "lifetransfer") { lifeTransfer(now); }
+			if (!read.history && parseChatEvent(line) == "lifetransfer") { lifeTransfer(now, "chat message: " + line); }
 		}
 		collector.flush(now);
 	} catch (e) { console.error("chat read failed", e); }
@@ -304,7 +312,7 @@ function render() {
 	// log
 	const log = $("log");
 	log.innerHTML = "";
-	for (const e of st.log.slice(0, 8)) {
+	for (const e of st.log.filter(e => e.kind != "debug")) {
 		const row = document.createElement("div");
 		row.className = e.kind;
 		row.innerHTML = `<span class="t">${timeOfDay(e.time)}</span>`;
@@ -443,6 +451,27 @@ function renderSettings() {
 	});
 }
 
+/** The whole log as plain text, oldest first, with the details used for diagnosing */
+function logText() {
+	const pad = (n: number) => n.toString().padStart(2, "0");
+	const stamp = (t: number) => {
+		const d = new Date(t);
+		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+	};
+	const lines = [
+		`Nexus Tracker v${VERSION} log - account "${settings.profile}", nexus ${settings.nexusItem}, Necromancy ${settings.necroLevel}`,
+		`Current counts: ${tracker.state.counts ? ITEMS.map(i => `${i.name} ${tracker.state.counts![i.id]}`).join(", ") : "not synced"}`,
+		"",
+	];
+	for (const e of tracker.state.log.slice().reverse()) {
+		let line = `${stamp(e.time)}  ${e.kind == "debug" ? "  . " : ""}${e.text}`;
+		if (e.why) { line += `\n                     why: ${e.why}`; }
+		if (e.after && e.kind != "info") { line += `\n                     now: ${e.after}`; }
+		lines.push(line);
+	}
+	return lines.join("\n");
+}
+
 // ---------------------------------------------------------------- UI events
 
 function togglePanel(id: string) {
@@ -535,6 +564,16 @@ function bindUi() {
 		renderTeach();
 	};
 
+	$("set-copylog").onclick = () => {
+		const ta = $<HTMLTextAreaElement>("set-log");
+		ta.value = logText();
+		$("set-log-wrap").hidden = false;
+		ta.focus();
+		ta.select();
+		let copied = false;
+		try { copied = document.execCommand("copy"); } catch (e) { }
+		$("set-log-hint").textContent = copied ? "Copied - paste it into a message or a text file." : "Select all the text above and copy it (Ctrl+C).";
+	};
 	$("set-export").onclick = () => {
 		$("set-json-wrap").hidden = false;
 		$("set-json-apply").hidden = true;

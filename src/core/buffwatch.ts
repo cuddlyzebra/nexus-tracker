@@ -14,18 +14,23 @@ export interface BuffObservation {
 
 export interface BuffEvents {
 	/** shield appeared, or its level changed (switched lesser <-> greater) */
-	shieldOn(level: number, isNewActivation: boolean): void;
-	shieldOff(): void;
+	shieldOn(level: number, isNewActivation: boolean, why: string): void;
+	shieldOff(why: string): void;
 	/** a taught (non-conjure) buff appeared or had its timer refreshed */
-	cast(key: string): void;
+	cast(key: string, why: string): void;
 	/**
 	 * Conjures summoned. More than one appearing together = Conjure Undead Army
 	 * (conjures that were already out and got their timer reset in the same moment are included).
 	 */
-	conjuresSummoned(keys: string[]): void;
+	conjuresSummoned(keys: string[], why: string): void;
 	/** conjure timers went up with no new conjure appearing = Life Transfer */
-	conjuresExtended(keys: string[]): void;
+	conjuresExtended(keys: string[], why: string): void;
+	/** diagnostic notes for the log (buff bar hidden, etc.) */
+	note?(text: string): void;
 }
+
+/** Bone Shield back within this many reads (3s) = it was only hidden, not switched off and on */
+const SHIELD_FLICKER_READS = 5;
 
 /** Conjure events within this many reads of each other are grouped (Undead Army summons them together) */
 const CONJURE_WINDOW = 2;
@@ -38,6 +43,8 @@ const SHIELD_GONE_AFTER = 2;
 const BLIND_MAX = 10;
 /** After a blind spell (buff bar hidden), this many reads just re-learn state without firing events */
 const SETTLE_READS = 2;
+/** reads happen every 0.6s; used to put gaps in seconds in the log */
+const secs = (reads: number) => (reads * 0.6).toFixed(1) + "s";
 
 export class BuffWatcher {
 	private tick = 0;
@@ -45,12 +52,14 @@ export class BuffWatcher {
 	private shield: { level: number, lastSeen: number } | null = null;
 	private shieldMissing = 0;
 	private pendingLevel: number | null = null;
+	/** read number when the Bone Shield buff was last seen before it went missing */
+	private shieldGoneAt = 0;
 	private lastTotal = 0;
 	private blindReads = 0;
 	/** per taught buff: last read it was seen, and its recent timer values (newest last) */
 	private seen = new Map<string, { lastSeen: number, times: number[] }>();
 	/** conjure changes being grouped: which appeared, which had their timer go up, and when the last one happened */
-	private conjureGroup: { appeared: Set<string>, extended: Set<string>, last: number } | null = null;
+	private conjureGroup: { appeared: Set<string>, extended: Set<string>, last: number, whys: string[] } | null = null;
 
 	constructor(private events: BuffEvents, private conjureKeys: Set<string>) { }
 
@@ -59,10 +68,12 @@ export class BuffWatcher {
 		// all buffs (2+) disappearing in one read = interface covered, not buffs ending
 		const suddenlyEmpty = obs.total == 0 && this.lastTotal >= 2 && this.blindReads < BLIND_MAX;
 		if (!obs.visible || suddenlyEmpty) {
+			if (this.blindReads == 0) { this.events.note?.(`Buff bar hidden or covered (${this.lastTotal} buffs vanished at once)`); }
 			this.blindReads++;
 			this.settleUntil = this.tick + SETTLE_READS;
 			return;
 		}
+		if (this.blindReads > 0) { this.events.note?.(`Buff bar visible again after ${secs(this.blindReads)} (${obs.total} buffs)`); }
 		this.blindReads = 0;
 		this.lastTotal = obs.total;
 		const settling = this.tick <= this.settleUntil;
@@ -72,14 +83,21 @@ export class BuffWatcher {
 			this.shieldMissing = 0;
 			if (!this.shield) {
 				this.shield = { level: obs.shieldLevel, lastSeen: this.tick };
-				this.events.shieldOn(obs.shieldLevel, !settling);
+				const gapReads = this.shieldGoneAt ? this.tick - this.shieldGoneAt : Infinity;
+				const gap = isFinite(gapReads) ? `, ${secs(gapReads)} after it was last seen` : " (first time seen)";
+				// back almost straight away = it was only hidden for a moment, not switched off and on
+				const flicker = gapReads <= SHIELD_FLICKER_READS;
+				const note = settling ? ", not charged: app just started or buff bar was covered"
+					: flicker ? ", not charged: back too quickly to have been switched off and on" : "";
+				this.events.shieldOn(obs.shieldLevel, !settling && !flicker, `Bone Shield buff appeared (level ${obs.shieldLevel})${gap}${note}`);
 			} else if (obs.shieldLevel != this.shield.level) {
 				// switching shield type while one is active casts the other one.
 				// require the new number twice in a row so a single misread can't trigger it
 				if (this.pendingLevel == obs.shieldLevel) {
+					const from = this.shield.level;
 					this.shield.level = obs.shieldLevel;
 					this.pendingLevel = null;
-					this.events.shieldOn(obs.shieldLevel, !settling);
+					this.events.shieldOn(obs.shieldLevel, !settling, `Bone Shield level changed ${from} -> ${obs.shieldLevel}`);
 				} else {
 					this.pendingLevel = obs.shieldLevel;
 				}
@@ -90,8 +108,9 @@ export class BuffWatcher {
 		} else if (this.shield) {
 			this.shieldMissing++;
 			if (this.shieldMissing >= SHIELD_GONE_AFTER) {
+				this.shieldGoneAt = this.shield.lastSeen;
 				this.shield = null;
-				this.events.shieldOff();
+				this.events.shieldOff(`Bone Shield buff not seen for ${secs(SHIELD_GONE_AFTER)} (${obs.total} buffs on bar)`);
 			}
 		}
 
@@ -105,13 +124,17 @@ export class BuffWatcher {
 			this.seen.set(b.key, { lastSeen: this.tick, times });
 			const refreshed = !isNew && isTimerRefresh(times);
 			if (settling || !(isNew || refreshed)) { continue; }
+			const why = isNew
+				? (prev ? `buff appeared ${secs(this.tick - prev.lastSeen)} after it was last seen` : "buff appeared (first time seen)")
+				: `timer went up: ${times.join(" -> ")}s`;
 
 			if (this.conjureKeys.has(b.key)) {
-				const g = this.conjureGroup = this.conjureGroup || { appeared: new Set(), extended: new Set(), last: this.tick };
+				const g = this.conjureGroup = this.conjureGroup || { appeared: new Set(), extended: new Set(), last: this.tick, whys: [] };
 				(isNew ? g.appeared : g.extended).add(b.key);
+				g.whys.push(`${b.key}: ${why}`);
 				g.last = this.tick;
 			} else {
-				this.events.cast(b.key);
+				this.events.cast(b.key, why);
 			}
 		}
 
@@ -122,9 +145,9 @@ export class BuffWatcher {
 			if (g.appeared.size > 0) {
 				// timers reset alongside new summons = those were re-summoned by the same Undead Army
 				const all = new Set([...g.appeared, ...(g.appeared.size + g.extended.size > 1 ? g.extended : [])]);
-				this.events.conjuresSummoned([...all]);
+				this.events.conjuresSummoned([...all], g.whys.join("; "));
 			} else if (g.extended.size > 0) {
-				this.events.conjuresExtended([...g.extended]);
+				this.events.conjuresExtended([...g.extended], g.whys.join("; "));
 			}
 		}
 	}
