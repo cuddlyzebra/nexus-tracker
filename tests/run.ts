@@ -4,11 +4,11 @@ import BuffReader from "alt1/buffs";
 import * as fs from "fs";
 import * as path from "path";
 import * as zlib from "zlib";
-import { createChatReader, classifyBuffs, isRecentTimestamp, buffMatches, templateToImage, cleanTemplate } from "../src/readers";
+import { createChatReader, classifyBuffs, isRecentTimestamp, buffMatches, templateToImage, cleanTemplate, readBuffs } from "../src/readers";
 import { NexusMessageCollector, parseLine, parseChatEvent, Counts } from "../src/core/chatparse";
 import { classifyShield, CooldownGuard } from "../src/core/data";
 import { Tracker, emptyState } from "../src/core/tracker";
-import { BuffWatcher, BuffObservation, isTimerRefresh } from "../src/core/buffwatch";
+import { BuffWatcher, BuffObservation, isTimerRefresh, isSameInstance } from "../src/core/buffwatch";
 import { shortNumber, toAlt1Pixels, stampHaloText } from "../src/lite";
 
 let failures = 0, passes = 0;
@@ -102,6 +102,29 @@ async function main() {
 		}
 		check("Invoke Death icon not confused with other buffs in screenshots", wrong == 0, wrong);
 	}
+
+	console.log("flashing buffs and 3-row bars");
+	{
+		const img = loadPng(fixture("buffs_three_rows.png"));
+		const br = new BuffReader();
+		br.find(new a1lib.ImgRefData(img));
+		br.pos!.maxhor = 9; br.pos!.maxver = 2;
+		const buffs = readBuffs(br, img) || [];
+		check("3-row bar: all 17 buffs read, including the flashing one in row 3", buffs.length == 17, buffs.length);
+		const tpls = require("../src/buffs/templates.json").map(templateToImage);
+		const r = classifyBuffs(buffs, tpls);
+		check("3-row bar: Bone Shield 60 and Darkness recognised", r.shieldLevel == 60 && r.buffs.some(b => b.key == "darkness"), r.buffs);
+		// a dimmed (flashing) copy of a built-in icon still matches
+		const t = tpls.find((t: any) => t.action == "invokelordofbones").img;
+		const dim = new a1lib.ImageData(new Uint8ClampedArray(t.data), t.width, t.height);
+		for (let i = 0; i < dim.data.length; i += 4) { for (let c = 0; c < 3; c++) { dim.data[i + c] = Math.round(dim.data[i + c] * 0.55); } }
+		check("flashing (dimmed) Lord of Bones icon still recognised", buffMatches(dim, t));
+		const others = tpls.filter((x: any) => x.action != "invokelordofbones").some((x: any) => buffMatches(dim, x.img));
+		check("dimmed icon doesn't match a different ability", !others);
+	}
+	check("buff back with timer where it left off = same cast", isSameInstance([4, 3], 1, 4));
+	check("buff back with a reset timer = new cast", !isSameInstance([4, 3], 20, 4));
+	check("stall press: timer 55 -> 60 is a recast", isTimerRefresh([56, 55, 60, 59]));
 
 	console.log("built-in icons");
 	{
@@ -279,7 +302,8 @@ async function main() {
 		idle(2, [["conjureskeleton", 70], ["conjurezombie", 70], ["conjureghost", 70]]);
 		idle(3, [["conjureskeleton", 69], ["conjurezombie", 69], ["conjureghost", 69]]);
 		check("timers extended = Life Transfer (once, not a re-summon)", ev.slice(mark).join() == "extended:conjureghost+conjureskeleton+conjurezombie", ev.slice(mark));
-		// conjures run out
+		// conjures run out (timers count down to the end, then the buffs go)
+		idle(2, [["conjureskeleton", 1], ["conjurezombie", 1], ["conjureghost", 1]]);
 		idle(6);
 		mark = ev.length;
 		// single conjure
@@ -298,6 +322,27 @@ async function main() {
 		idle(3, [["conjureskeleton", 59], ["conjurezombie", 59], ["conjureghost", 58]]);
 		check("army counted together even if one icon is a read late", ev.slice(mark).join() == "army:conjureghost+conjureskeleton+conjurezombie", ev.slice(mark));
 		idle(6);
+
+		// Lord of Bones used to stall combat: pressed every ~5s while its buff is still up
+		{
+			const before = ev.length;
+			let t = 60;
+			for (let press = 0; press < 5; press++) {
+				for (let k = 0; k < 8; k++) { w.update(o(30, [["invokelordofbones", t]])); t = Math.max(0, t - (k % 2 ? 1 : 0)); }
+				t = 60;//pressed again
+			}
+			const n = ev.slice(before).filter(e => e.startsWith("invokelordofbones")).length;
+			check("Lord of Bones stalled 5 times = 5 casts", n == 5, ev.slice(before));
+		}
+		// a buff flashing out near the end and coming back isn't a new cast
+		{
+			const before = ev.length;
+			w.update(o(30, [["reflect", 6]])); w.update(o(30, [["reflect", 5]])); w.update(o(30, [["reflect", 4]]));
+			for (let k = 0; k < 5; k++) { w.update(o(30)); }//flashing: not recognised for 3s
+			w.update(o(30, [["reflect", 1]]));
+			check("Reflect flashing near the end isn't counted twice", ev.slice(before).filter(e => e.startsWith("reflect")).length == 1, ev.slice(before));
+			for (let k = 0; k < 6; k++) { w.update(o(30)); }
+		}
 
 		// Invoke Death as reported: ~10s buff, number changing, occasionally not matched for a read or two
 		const before = ev.length;

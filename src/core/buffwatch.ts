@@ -117,7 +117,12 @@ export class BuffWatcher {
 		// ---- taught buffs ----
 		for (const b of obs.buffs) {
 			const prev = this.seen.get(b.key);
-			const isNew = !prev || this.tick - prev.lastSeen > GONE_AFTER;
+			let isNew = !prev || this.tick - prev.lastSeen > GONE_AFTER;
+			if (isNew && prev && !settling && isSameInstance(prev.times, b.time, this.tick - prev.lastSeen)) {
+				// it was only hidden or flashing: the timer carried on from where it was
+				this.events.note?.(`${b.key} buff back after ${secs(this.tick - prev.lastSeen)} with its timer where it left off (${prev.times[prev.times.length - 1]}s -> ${b.time}s): same cast, not counted`);
+				isNew = false;
+			}
 			const times = isNew ? [] : prev!.times;
 			times.push(b.time);
 			if (times.length > 4) { times.shift(); }
@@ -163,6 +168,21 @@ export function isTimerRefresh(times: number[]) {
 	const [a, b, c, d] = times.slice(-4);
 	if (!a || !b || !c || !d) { return false; }//0 = no timer text
 	const before = Math.max(a, b);
-	const slack = before >= 60 ? 0 : 5;//minute-precision timers ("2m") can only step up by a whole minute
+	// Both of the last two reads must be above both reads before them, so a single misread digit
+	// can't count. 2s is enough: recasting a no-cooldown ability like Lord of Bones only lifts
+	// its timer a few seconds. Minute timers ("2m") can only step up by a whole minute.
+	const slack = before >= 60 ? 0 : 1;
 	return c > before + slack && d > before + slack;
+}
+
+/**
+ * A buff that went missing and came back is the same cast (not a new one) if its timer is where
+ * it would have been anyway: the last value seen minus the time it was gone, plus a little slack.
+ * A real recast resets the timer higher than that.
+ */
+export function isSameInstance(prevTimes: number[], nowTime: number, goneReads: number) {
+	const last = prevTimes[prevTimes.length - 1];
+	if (!last || !nowTime) { return false; }//no timer to compare
+	const expected = last - goneReads * 0.6;
+	return nowTime <= Math.max(0, expected) + 3;
 }

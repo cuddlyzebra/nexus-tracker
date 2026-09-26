@@ -62,8 +62,13 @@ Everything below is detected automatically.
 number is 25% / 50% of your Necromancy level with the Deathwarden or Devourer's nexus, and
 37.5% / 62.5% with Zemouregal's (for example, 30 / 60 at level 120).
 
-**Double counts:** an ability can't be counted again within half its cooldown (for example 30s for
-Split Soul), so a buff that flickers on the bar isn't charged twice.
+**Recasting while the buff is up:** pressing an ability again while its buff is still on the bar
+(for example spamming Invoke Lord of Bones to stay in combat) resets its timer, and each reset is
+counted as a cast.
+
+**Double counts:** buffs that flash as they run out, or briefly go missing, aren't counted again if
+their timer carries on from where it was. An ability also can't be counted twice within half its
+cooldown (for example 30s for Split Soul).
 
 ## Split Soul and the Eldritch crossbow
 

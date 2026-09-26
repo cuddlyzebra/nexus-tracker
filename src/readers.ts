@@ -148,7 +148,40 @@ export function buffMatches(img: ImageData, template: ImageData) {
 			if (d > 24) { failed++; }
 		}
 	}
-	return tested >= 60 && failed <= tested * 0.03;
+	if (tested >= 60 && failed <= tested * 0.03) { return true; }
+	return dimmedMatch(img, template);
+}
+
+/**
+ * Second chance for a buff that's flashing (about to run out): RuneScape dims the whole icon,
+ * so compare it against the template darkened by the same amount.
+ */
+function dimmedMatch(img: ImageData, template: ImageData) {
+	const w = Math.min(img.width, template.width), h = Math.min(img.height, template.height);
+	let sumI = 0, sumT = 0;
+	const px: number[] = [];
+	for (let y = 0; y < h; y++) {
+		for (let x = 0; x < w; x++) {
+			if (inTextArea(x, y)) { continue; }
+			const i1 = (y * img.width + x) * 4, i2 = (y * template.width + x) * 4;
+			if (template.data[i2 + 3] != 255 || img.data[i1 + 3] != 255) { continue; }
+			const r = img.data[i1], g = img.data[i1 + 1], b = img.data[i1 + 2];
+			if ((r == 255 && g == 255 && b == 255) || (r == 0 && g == 0 && b == 0)) { continue; }
+			sumI += r + g + b;
+			sumT += template.data[i2] + template.data[i2 + 1] + template.data[i2 + 2];
+			px.push(i1, i2);
+		}
+	}
+	if (px.length / 2 < 60 || sumT == 0) { return false; }
+	const k = sumI / sumT;
+	if (k < 0.35 || k > 0.97) { return false; }//not dimmed: the normal comparison already decided
+	let failed = 0;
+	for (let n = 0; n < px.length; n += 2) {
+		const i1 = px[n], i2 = px[n + 1];
+		const d = Math.abs(img.data[i1] - template.data[i2] * k) + Math.abs(img.data[i1 + 1] - template.data[i2 + 1] * k) + Math.abs(img.data[i1 + 2] - template.data[i2 + 2] * k);
+		if (d > 30) { failed++; }
+	}
+	return failed <= (px.length / 2) * 0.05;
 }
 
 /** Copy of a buff image with the text corner blanked out, for saving as a template */
@@ -182,6 +215,68 @@ export function classifyBuffs(buffs: Buff[], templates: LoadedTemplate[]): BuffR
 	return r;
 }
 
+const buffBorder: Promise<ImageData> = require("alt1/buffs/imgs/buffborder.data.png.js");
+let buffBorderImg: ImageData | null = null;
+buffBorder.then(i => buffBorderImg = i);
+
+/**
+ * Is there a buff border at (x, y)? The stock reader needs an exact colour match, but RuneScape
+ * fades buffs in and out when they're about to run out, which dims the green border. This
+ * accepts an exact match, or a border whose pixels are all the same green, just dimmer.
+ */
+export function isBuffBorder(buffer: ImageData, border: ImageData, x: number, y: number) {
+	if (x < 0 || y < 0 || x + border.width > buffer.width || y + border.height > buffer.height) { return false; }
+	if (buffer.pixelCompare(border, x, y) == 0) { return true; }
+	let total = 0, good = 0;
+	for (let yy = 0; yy < border.height; yy++) {
+		for (let xx = 0; xx < border.width; xx++) {
+			const i2 = (yy * border.width + xx) * 4;
+			if (border.data[i2 + 3] != 255) { continue; }
+			total++;
+			const i1 = ((y + yy) * buffer.width + x + xx) * 4;
+			const r = buffer.data[i1], g = buffer.data[i1 + 1], b = buffer.data[i1 + 2];
+			const br = border.data[i2], bg = border.data[i2 + 1], bb = border.data[i2 + 2];
+			// same hue as the border (green well above red and blue), at 35-110% of its brightness
+			const scale = g / bg;
+			if (scale >= 0.35 && scale <= 1.1 && Math.abs(r - br * scale) <= 28 && Math.abs(b - bb * scale) <= 28) { good++; }
+		}
+	}
+	return total > 0 && good >= total * 0.95;
+}
+
+/**
+ * Same as BuffReader.read(), but uses the tolerant border check so buffs that are flashing
+ * (about to run out) aren't skipped, which used to make them look gone and then "new" again.
+ */
+export function readBuffs(reader: BuffReader, buffer?: ImageData): Buff[] | null {
+	const pos = reader.pos;
+	if (!pos || !buffBorderImg) { return reader.read(buffer); }
+	const rect = reader.getCaptRect();
+	if (!rect) { return null; }
+	let dx = rect.x, dy = rect.y;
+	if (!buffer) {
+		buffer = a1lib.capture(rect.x, rect.y, rect.width, rect.height)!;
+		dx = 0; dy = 0;
+	}
+	if (!buffer) { return null; }
+	const r: Buff[] = [];
+	let maxhor = 0, maxver = 0;
+	for (let ix = 0; ix <= pos.maxhor; ix++) {
+		for (let iy = 0; iy <= pos.maxver; iy++) {
+			const x = dx + ix * BuffReader.gridsize;
+			const y = dy + iy * BuffReader.gridsize;
+			if (!isBuffBorder(buffer, buffBorderImg, x, y)) { break; }
+			r.push(Buff.fromImg("small", buffer, x, y, false));
+			maxhor = Math.max(maxhor, ix);
+			maxver = Math.max(maxver, iy);
+		}
+	}
+	// always look a little past the last buff found, and start big enough for a full bar
+	pos.maxhor = Math.max(9, maxhor + 2);
+	pos.maxver = Math.max(2, maxver + 1);
+	return r;
+}
+
 export class BuffWatcherScreen {
 	reader = new BuffReader();
 	found = false;
@@ -196,8 +291,11 @@ export class BuffWatcherScreen {
 			this.nextFind = now + 1200;
 			if (!this.reader.find()) { return empty; }
 			this.found = true;
+			// start with a grid big enough for a wide or 3-row bar instead of growing into it
+			this.reader.pos!.maxhor = 9;
+			this.reader.pos!.maxver = 2;
 		}
-		const buffs = this.reader.read();
+		const buffs = readBuffs(this.reader);
 		if (!buffs || buffs.length == 0) {
 			// bar emptied, was covered or moved: locate it again
 			this.found = false;
