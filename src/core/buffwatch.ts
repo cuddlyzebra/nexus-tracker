@@ -59,6 +59,8 @@ export class BuffWatcher {
 	 */
 	changeAt = 0;
 	private settleUntil = SETTLE_READS;//also suppresses events on startup
+	/** false until the buff bar has been read with buffs on it at least once */
+	private everSeen = false;
 	private shield: { level: number, lastSeen: number } | null = null;
 	private shieldMissing = 0;
 	private pendingLevel: number | null = null;
@@ -90,6 +92,13 @@ export class BuffWatcher {
 		if (this.blindReads > 0) { this.events.note?.(`Buff bar visible again after ${secs(this.blindReads)} (${obs.total} buffs)`); }
 		this.blindReads = 0;
 		this.lastTotal = obs.total;
+		if (!this.everSeen && obs.total > 0) {
+			// first time the bar is actually read (it can take a few seconds to find after the app
+			// opens): whatever is on it was already there, so learn it without charging anything
+			this.everSeen = true;
+			this.settleUntil = this.tick + SETTLE_READS;
+			this.events.note?.(`Buff bar found (${obs.total} buffs); buffs already on it aren't charged`);
+		}
 		const settling = this.tick <= this.settleUntil;
 
 		// ---- Bone Shield ----
@@ -212,7 +221,8 @@ export function isSameInstance(prevTimes: number[], nowTime: number, goneReads: 
 export function darknessCasts(from: number | null, to: number): { casts: number, multicast: boolean } {
 	const CAST = 12 * 60, MAX = 60 * 60;
 	const added = to - (from ?? 0);
-	// jumped to (about) the full hour by more than one cast's worth = multicast
-	if (to >= MAX - 60 && added > CAST + 60) { return { casts: 5, multicast: true }; }
+	// Ending up at the full hour = multicast, even if it was only a small top-up (for example
+	// 58m -> 1hr): a normal cast only reaches the hour if cast with 48m+ left, which wastes runes.
+	if (to >= MAX - 60) { return { casts: 5, multicast: true }; }
 	return { casts: Math.max(1, Math.round(added / CAST)), multicast: false };
 }

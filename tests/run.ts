@@ -136,7 +136,9 @@ async function main() {
 		check("two quick casts 11m -> 35m = 2 casts", eq(darknessCasts(m(11), m(35)), { casts: 2, multicast: false }));
 		check("multicast 11m -> 1hr = 5x", eq(darknessCasts(m(11), m(60)), { casts: 5, multicast: true }));
 		check("multicast from nothing -> 1hr = 5x", eq(darknessCasts(null, m(60)), { casts: 5, multicast: true }));
-		check("single cast near the cap 50m -> 60m = 1 cast", eq(darknessCasts(m(50), m(60)), { casts: 1, multicast: false }));
+		check("multicast top-up 58m -> 1hr = 5x", eq(darknessCasts(m(58), m(60)), { casts: 5, multicast: true }));
+		check("multicast top-up 59m -> 1hr = 5x", eq(darknessCasts(m(59), m(60)), { casts: 5, multicast: true }));
+		check("normal cast 30m -> 42m = 1 cast", eq(darknessCasts(m(30), m(42)), { casts: 1, multicast: false }));
 		check("minute timer reapply is seen as a recast", isTimerRefresh([m(11), m(11), m(23), m(23)]));
 		check("11m counting down to 10m isn't a recast", !isTimerRefresh([m(11), m(11), m(10), m(10)]));
 	}
@@ -154,6 +156,17 @@ async function main() {
 		const o = (t: number, ms: number): BuffObservation => ({ visible: true, shieldLevel: null, buffs: [{ key: "darkness", time: t }], total: 3, at: ms });
 		[[660, 1000], [660, 1600], [660, 2200], [660, 2800], [3600, 3400], [3600, 4000]].forEach(([t, ms]) => w.update(o(t, ms)));
 		check("timer jump is dated to the read it happened on", at.length == 1 && at[0] == 3400, at);
+	}
+
+	{
+		// buffs already on the bar when it's first found (a few seconds after the app opens) aren't charged
+		const ev: string[] = [];
+		const w = new BuffWatcher({ shieldOn: (l, n) => ev.push(`on${l}${n ? "!" : ""}`), shieldOff() { }, cast: k => ev.push(k), conjuresSummoned() { }, conjuresExtended() { } }, new Set());
+		for (let i = 0; i < 6; i++) { w.update({ visible: true, shieldLevel: null, buffs: [], total: 0 }); }//bar not found yet
+		for (let i = 0; i < 3; i++) { w.update({ visible: true, shieldLevel: 60, buffs: [{ key: "darkness", time: 3540 }], total: 5 }); }
+		check("buffs already up when the bar is first found aren't charged", ev.every(e => !e.endsWith("!") && e != "darkness"), ev);
+		w.update({ visible: true, shieldLevel: 60, buffs: [{ key: "darkness", time: 3540 }, { key: "reflect", time: 6 }], total: 6 });
+		check("...but new casts after that are", ev.includes("reflect"), ev);
 	}
 
 	console.log("built-in icons");

@@ -78,13 +78,14 @@ count once, because the timer hasn't dropped far enough to visibly jump back up.
 
 **Reapplying Darkness.** Darkness starts at 12m and each cast adds 12 minutes, up to 1 hour.
 Reapplying it before it runs out (for example at 11m) makes the timer jump up by about 12m,
-which counts as one cast. The right-click **multicast** fills it to 1 hour in one go; a jump
-straight up to about an hour is recognised as a multicast and charged as one.
+which counts as one cast. The right-click **multicast** fills it to 1 hour in one go, so the timer
+going up to the full hour is charged as a multicast, even when it only tops up a few minutes.
 
 **Buffs that flash or briefly disappear.** RuneScape makes buffs flash as they run out, and
 an interface can briefly cover the bar. A buff that comes back with its timer carrying on from
 where it was (for example 3s left, gone, then back at 1s) is the same cast, not a new one.
-The Bone Shield buff reappearing within 3 seconds is treated the same way.
+The Bone Shield buff reappearing within 3 seconds is treated the same way. Buffs that are already
+on your bar when you open the app aren't charged.
 
 **One cast, one charge.** An ability can't be counted twice within half its cooldown,
 for example 30s for Split Soul or 15s for Reflect. That catches any double detection that
