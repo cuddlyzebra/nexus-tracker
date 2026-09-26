@@ -62,13 +62,32 @@ Everything below is detected automatically.
 number is 25% / 50% of your Necromancy level with the Deathwarden or Devourer's nexus, and
 37.5% / 62.5% with Zemouregal's (for example, 30 / 60 at level 120).
 
-**Recasting while the buff is up:** pressing an ability again while its buff is still on the bar
-(for example spamming Invoke Lord of Bones to stay in combat) resets its timer, and each reset is
-counted as a cast.
+## How it counts
 
-**Double counts:** buffs that flash as they run out, or briefly go missing, aren't counted again if
-their timer carries on from where it was. An ability also can't be counted twice within half its
-cooldown (for example 30s for Split Soul).
+The app never sees your keybinds. It watches your buff bar (and chat, for Life Transfer)
+and works out what you did from what changes there.
+
+**A new cast.** A buff appearing on the bar counts as one cast, and its cost comes off straight away.
+
+**Recasting while the buff is still up.** Timers only ever count down on their own, so a timer
+jumping back up means you used the ability again. That counts as another cast.
+For example, pressing Invoke Lord of Bones every few seconds to stay in combat resets its
+timer to 60 each time, and every press is charged 8 Spirit, 6 Bone, 2 Flesh and 1 Miasma.
+Presses need to be at least 2-3 seconds apart: two presses within a second or two only
+count once, because the timer hasn't dropped far enough to visibly jump back up.
+
+**Buffs that flash or briefly disappear.** RuneScape makes buffs flash as they run out, and
+an interface can briefly cover the bar. A buff that comes back with its timer carrying on from
+where it was (for example 3s left, gone, then back at 1s) is the same cast, not a new one.
+The Bone Shield buff reappearing within 3 seconds is treated the same way.
+
+**One cast, one charge.** An ability can't be counted twice within half its cooldown,
+for example 30s for Split Soul or 15s for Reflect. That catches any double detection that
+slips through. Invoke Lord of Bones and Darkness have no (or almost no) cooldown, so they
+rely on the timer checks above.
+
+**Big buff bars.** The app reads buff bars up to 10 buffs wide and 3 rows deep, including
+buffs that are flashing.
 
 ## Split Soul and the Eldritch crossbow
 
@@ -129,7 +148,7 @@ Default warning levels: **1,000** Ectoplasm, Spirit, Bone and Flesh runes; **500
 
 - **Two accounts:** Settings → Account keeps separate counts per account. Pick the right one in each Alt1 window.
 - **Undo:** reverses the last charge if something was counted by mistake.
-- **Copy log:** Settings → Copy log copies the full history, including why each charge was counted. Paste it into a bug report.
+- **Copy log:** Settings → Copy log copies the full history (last 400 entries) with the reason for each charge. Paste it into a bug report.
 - **Log a cast:** add a charge by hand (for teleports, or anything the app missed).
 - **Correct counts:** set any number by hand in Settings. Check contents does this for you anyway.
 - **Teach mode:** only needed if a game update changes a buff icon. Turn it on, use the ability,
@@ -143,6 +162,8 @@ Default warning levels: **1,000** Ectoplasm, Spirit, Bone and Flesh runes; **500
 - If your buff bar is covered by an interface when a buff appears, that cast can be missed.
   Checking contents fixes the numbers.
 - Alt1 overlays can't be partly transparent, so lite mode offers a solid panel or no background.
+- Two presses of the same ability within a second or two of each other count as one.
+- The Eldritch crossbow's Split Soul looks identical to the Necromancy one. See [Split Soul](#split-soul-and-the-eldritch-crossbow).
 
 ## Reporting a problem
 
